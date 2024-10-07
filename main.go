@@ -31,10 +31,19 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
+)
+
+type (
+	VowelForms map[rune]string
+)
+
+var (
+	vowelForms VowelForms
 )
 
 func init() {
@@ -84,6 +93,24 @@ func main() {
 	}
 	filename := filepath.Join("dictionaries", lang+".txt")
 
+	// Define a map of vowels to their different forms
+	vowelForms = VowelForms{
+		'a': "àáâãäå",
+		'e': "èéêë",
+		'i': "ìíîï",
+		'o': "òóôõö",
+		'u': "ùúûü",
+	}
+
+	// Update sixCharString to include different forms of vowels
+	updatedSixCharString := sixCharString
+	for _, char := range sixCharString {
+		if forms, exists := vowelForms[char]; exists {
+			updatedSixCharString += forms
+		}
+	}
+	sixCharString = updatedSixCharString
+
 	searchForMatchingWords(filename, singleLetter, sixCharString, length)
 
 }
@@ -129,7 +156,31 @@ func searchForMatchingWords(filename string, singleLetter string, sixCharString 
 			filteredResults = append(filteredResults, word)
 		}
 	}
+
 	results = filteredResults
+
+	// Replace vowel forms with the base vowel in the results
+	for i, word := range results {
+		for vowel, forms := range vowelForms {
+			for _, form := range forms {
+				word = strings.ReplaceAll(word, string(form), string(vowel))
+			}
+		}
+		results[i] = word
+	}
+
+	// Remove duplicate words from the results
+	uniqueResults := make(map[string]struct{})
+	for _, word := range results {
+		uniqueResults[word] = struct{}{}
+	}
+
+	results = make([]string, 0, len(uniqueResults))
+	for word := range uniqueResults {
+		results = append(results, word)
+	}
+	// Sort the results alphabetically
+	sort.Strings(results)
 
 	fmt.Println("Matching words:", results)
 
