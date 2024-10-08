@@ -1,38 +1,13 @@
-// Package main provides a command-line tool for searching words in a text file
-// based on specific criteria. It supports loading environment variables from
-// a .env file and cleaning up text files by removing comments.
-//
-// The main functionality includes:
-//   - Searching for words that contain a specific single letter and are composed
-//     of characters from a given 6-character string.
-//   - Filtering words based on a specified length.
-//   - Cleaning up text files by removing comments.
-//
-// Usage:
-//
-//	main <single-letter> <6-char-string> [length]
-//	main <filename>.txt
-//
-// Functions:
-//   - init: Initializes the environment by loading variables from a .env file.
-//   - main: The entry point of the application. It parses command-line arguments
-//     and calls the appropriate functions based on the input.
-//   - loadEnv: Loads environment variables from a .env file.
-//   - searchForMatchingWords: Searches for words in a file that match the given
-//     criteria and prints the results.
-//   - isValidWord: Checks if a word is valid based on the allowed characters.
-//   - cleanUp: Cleans up a text file by removing comments and writes the cleaned
-//     content to a new file.
 package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -40,6 +15,14 @@ import (
 
 type (
 	VowelForms map[rune]string
+	Flags      struct {
+		CleanupFlag   bool
+		Filename      string
+		OutputFile    string
+		SingleLetter  string
+		SixCharString string
+		Length        int
+	}
 )
 
 var (
@@ -51,47 +34,58 @@ func init() {
 }
 
 func main() {
+	flags := Flags{}
 
-	if len(os.Args) == 3 && (strings.HasSuffix(os.Args[1], ".txt") || strings.HasSuffix(os.Args[1], ".dic")) {
-		fmt.Println("--- Cleanup called ---")
-		cleanUp(os.Args[1], os.Args[2])
-		return
-	}
+	flag.BoolVar(&flags.CleanupFlag, "cleanup", false, "Run cleanup on a given file (alias: -c)")
+	flag.BoolVar(&flags.CleanupFlag, "cl", false, "Run cleanup on a given file")
 
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: main <single-letter> <6-char-string> [length]")
-		return
-	}
+	flag.StringVar(&flags.Filename, "file", "", "The input file (required for cleanup) (alias: -f)")
+	flag.StringVar(&flags.Filename, "f", "", "The input file (required for cleanup)")
 
-	singleLetter := os.Args[1]
-	if len(singleLetter) != 1 {
-		fmt.Println("The first parameter must be a single letter.")
-		return
-	}
+	flag.StringVar(&flags.OutputFile, "output", "", "The output file (required for cleanup) (alias: -o)")
+	flag.StringVar(&flags.OutputFile, "o", "", "The output file (required for cleanup)")
 
-	sixCharString := os.Args[2]
-	if len(sixCharString) != 6 {
-		fmt.Println("The second parameter must be a string of 6 characters.")
-		return
-	}
+	flag.StringVar(&flags.SingleLetter, "letter", "", "A single letter to search for (alias: -l)")
+	flag.StringVar(&flags.SingleLetter, "l", "", "A single letter to search for")
 
-	var length int
-	if len(os.Args) > 3 {
-		var err error
-		length, err = strconv.Atoi(os.Args[3])
-		if err != nil {
-			fmt.Println("The third parameter must be an integer.")
+	flag.StringVar(&flags.SixCharString, "chars", "", "A 6-character string (alias: -c)")
+	flag.StringVar(&flags.SixCharString, "c", "", "A 6-character string")
+
+	flag.IntVar(&flags.Length, "length", 0, "Optional length of words to match (alias: -len)")
+	flag.IntVar(&flags.Length, "len", 0, "Optional length of words to match")
+
+	flag.Parse()
+
+	if flags.CleanupFlag {
+		if flags.Filename == "" || flags.OutputFile == "" {
+			fmt.Println("Usage: -cleanup -file <filename> -output <outputFile>")
 			return
 		}
-	} else {
-		length = 0 // Default value if the length parameter is not provided
+		fmt.Println("--- Cleanup called ---")
+		cleanUp(flags.Filename, flags.OutputFile)
+		return
+	}
+
+	if flags.SingleLetter == "" || flags.SixCharString == "" {
+		fmt.Println("Usage: -letter <single-letter> -chars <6-char-string> [-length <length>]")
+		return
+	}
+
+	if len(flags.SingleLetter) != 1 {
+		fmt.Println("The letter parameter must be a single letter.")
+		return
+	}
+
+	if len(flags.SixCharString) != 6 {
+		fmt.Println("The chars parameter must be a string of 6 characters.")
+		return
 	}
 
 	lang := os.Getenv("WBLANG")
 	if lang == "" {
 		lang = "af-za"
 	}
-	filename := filepath.Join("dictionaries", lang+".txt")
+	filenamePath := filepath.Join("dictionaries", lang+".txt")
 
 	// Define a map of vowels to their different forms
 	vowelForms = VowelForms{
@@ -103,16 +97,15 @@ func main() {
 	}
 
 	// Update sixCharString to include different forms of vowels
-	updatedSixCharString := sixCharString
-	for _, char := range sixCharString {
+	updatedSixCharString := flags.SixCharString
+	for _, char := range flags.SixCharString {
 		if forms, exists := vowelForms[char]; exists {
 			updatedSixCharString += forms
 		}
 	}
-	sixCharString = updatedSixCharString
+	flags.SixCharString = updatedSixCharString
 
-	searchForMatchingWords(filename, singleLetter, sixCharString, length)
-
+	searchForMatchingWords(filenamePath, flags.SingleLetter, flags.SixCharString, flags.Length)
 }
 
 func loadEnv() {
