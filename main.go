@@ -2,14 +2,16 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
 )
 
@@ -33,54 +35,137 @@ func init() {
 	loadEnv()
 }
 
+type state int
+
+const (
+	inputSingleLetter state = iota
+	inputSixCharString
+	inputLength
+	inputCleanupFile
+	done
+)
+
+type model struct {
+	flags        Flags
+	results      []string
+	loading      bool
+	errorMessage string
+	inputs       []textinput.Model
+	focusedInput int
+	currentState state
+}
+
 func main() {
 	flags := Flags{}
 
-	flag.BoolVar(&flags.CleanupFlag, "cleanup", false, "Run cleanup on a given file (alias: -c)")
-	flag.BoolVar(&flags.CleanupFlag, "cl", false, "Run cleanup on a given file")
+	p := tea.NewProgram(initializeModel(flags), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
 
-	flag.StringVar(&flags.Filename, "file", "", "The input file (required for cleanup) (alias: -f)")
-	flag.StringVar(&flags.Filename, "f", "", "The input file (required for cleanup)")
+func initializeModel(flags Flags) model {
+	inputs := make([]textinput.Model, 5)
 
-	flag.StringVar(&flags.OutputFile, "output", "", "The output file (required for cleanup) (alias: -o)")
-	flag.StringVar(&flags.OutputFile, "o", "", "The output file (required for cleanup)")
+	// SingleLetter input
+	input := textinput.New()
+	input.Placeholder = "Single Letter"
+	input.Focus()
+	inputs[0] = input
 
-	flag.StringVar(&flags.SingleLetter, "letter", "", "A single letter to search for (alias: -l)")
-	flag.StringVar(&flags.SingleLetter, "l", "", "A single letter to search for")
+	// SixCharString input
+	input = textinput.New()
+	input.Placeholder = "6-Character String"
+	inputs[1] = input
 
-	flag.StringVar(&flags.SixCharString, "chars", "", "A 6-character string (alias: -c)")
-	flag.StringVar(&flags.SixCharString, "c", "", "A 6-character string")
+	// Length input
+	input = textinput.New()
+	input.Placeholder = "Word Length (0 for any)"
+	inputs[2] = input
 
-	flag.IntVar(&flags.Length, "length", 0, "Optional length of words to match (alias: -len)")
-	flag.IntVar(&flags.Length, "len", 0, "Optional length of words to match")
+	// Filename input (for cleanup)
+	input = textinput.New()
+	input.Placeholder = "Filename (for cleanup)"
+	inputs[3] = input
 
-	flag.Parse()
+	// OutputFile input (for cleanup)
+	input = textinput.New()
+	input.Placeholder = "Output File (for cleanup)"
+	inputs[4] = input
 
-	if flags.CleanupFlag {
-		if flags.Filename == "" || flags.OutputFile == "" {
-			fmt.Println("Usage: -cleanup -file <filename> -output <outputFile>")
-			return
+	return model{
+		flags:        flags,
+		loading:      false,
+		inputs:       inputs,
+		focusedInput: 0,
+		currentState: inputSingleLetter,
+	}
+}
+
+func (m model) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			return m, tea.Quit
+		case "tab":
+			return initializeModel(m.flags), nil
+		case "enter":
+			if m.currentState <= inputLength {
+				if m.currentState == inputSingleLetter {
+					m.flags.SingleLetter = m.inputs[0].Value()
+				} else if m.currentState == inputSixCharString {
+					m.flags.SixCharString = m.inputs[1].Value()
+				} else if m.currentState == inputLength {
+					length, err := strconv.Atoi(m.inputs[2].Value())
+					if err != nil {
+						m.errorMessage = "Length must be a number"
+						return m, nil
+					}
+					m.flags.Length = length
+					if m.flags.Length < 0 {
+						m.currentState = inputCleanupFile
+						m.focusedInput = 3
+						m.inputs[m.focusedInput].Focus()
+						return m, nil
+					}
+					m.currentState = done
+					return m.searchWords(), nil
+				}
+
+				m.currentState++
+				m.focusedInput++
+				m.inputs[m.focusedInput].Focus()
+				return m, nil
+			} else if m.currentState == inputCleanupFile {
+				m.flags.Filename = m.inputs[3].Value()
+				m.flags.OutputFile = m.inputs[4].Value()
+				if m.flags.Filename == "" || m.flags.OutputFile == "" {
+					m.errorMessage = "Filename and Output File are required for cleanup"
+					return m, nil
+				}
+				m.currentState = done
+				cleanUp(m.flags.Filename, m.flags.OutputFile)
+			}
+			if m.currentState == done {
+				return m.searchWords(), nil
+			}
 		}
-		fmt.Println("--- Cleanup called ---")
-		cleanUp(flags.Filename, flags.OutputFile)
-		return
 	}
 
-	if flags.SingleLetter == "" || flags.SixCharString == "" {
-		fmt.Println("Usage: -letter <single-letter> -chars <6-char-string> [-length <length>]")
-		return
+	// Only update the current input field
+	if m.currentState <= inputLength || (m.currentState == inputCleanupFile && m.flags.Length < 0) {
+		m.inputs[m.focusedInput], _ = m.inputs[m.focusedInput].Update(msg)
 	}
 
-	if len(flags.SingleLetter) != 1 {
-		fmt.Println("The letter parameter must be a single letter.")
-		return
-	}
+	return m, nil
+}
 
-	if len(flags.SixCharString) != 6 {
-		fmt.Println("The chars parameter must be a string of 6 characters.")
-		return
-	}
-
+func (m model) searchWords() model {
 	lang := os.Getenv("WBLANG")
 	if lang == "" {
 		lang = "af-za"
@@ -97,15 +182,61 @@ func main() {
 	}
 
 	// Update sixCharString to include different forms of vowels
-	updatedSixCharString := flags.SixCharString
-	for _, char := range flags.SixCharString {
+	updatedSixCharString := m.flags.SixCharString
+	for _, char := range m.flags.SixCharString {
 		if forms, exists := vowelForms[char]; exists {
 			updatedSixCharString += forms
 		}
 	}
-	flags.SixCharString = updatedSixCharString
+	m.flags.SixCharString = updatedSixCharString
 
-	searchForMatchingWords(filenamePath, flags.SingleLetter, flags.SixCharString, flags.Length)
+	m.results = searchForMatchingWords(filenamePath, m.flags.SingleLetter, m.flags.SixCharString, m.flags.Length)
+	m.loading = false
+
+	return m
+}
+
+func (m model) View() string {
+	if m.loading {
+		return "Loading..."
+	}
+
+	if m.errorMessage != "" {
+		return fmt.Sprintf("Error: %s\nPress 'esc' to quit.", m.errorMessage)
+	}
+
+	if m.currentState == done {
+		if len(m.results) == 0 {
+			return "No matching words found.\nPress 'esc' to quit."
+		}
+
+		resultStr := "Matching words:\n"
+		for _, word := range m.results {
+			resultStr += word + "\n"
+		}
+		resultStr += fmt.Sprintf("\nNumber of matching words: %d\n", len(m.results))
+		resultStr += "\nPress 'esc' to quit. Press 'tab' to restart."
+
+		return resultStr
+	}
+
+	var b strings.Builder
+	b.WriteString("Input Values (Press 'Enter' to continue):\n\n")
+
+	for i := range m.inputs {
+		if m.currentState <= inputLength && i > 2 {
+			break
+		}
+		b.WriteString(m.inputs[i].View())
+		if i == m.focusedInput {
+			b.WriteString(" ←")
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\nPress 'esc' to quit, 'tab' to restart.")
+
+	return b.String()
 }
 
 func loadEnv() {
@@ -115,12 +246,11 @@ func loadEnv() {
 	}
 }
 
-func searchForMatchingWords(filename string, singleLetter string, sixCharString string, length int) {
+func searchForMatchingWords(filename string, singleLetter string, sixCharString string, length int) []string {
 	// Open the file for reading
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
+		return []string{"Error opening file: " + err.Error()}
 	}
 	defer file.Close()
 
@@ -138,8 +268,7 @@ func searchForMatchingWords(filename string, singleLetter string, sixCharString 
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
-		return
+		return []string{"Error reading file: " + err.Error()}
 	}
 
 	// Filter results for words 4 letters and longer
@@ -175,9 +304,7 @@ func searchForMatchingWords(filename string, singleLetter string, sixCharString 
 	// Sort the results alphabetically
 	sort.Strings(results)
 
-	fmt.Println("Matching words:", results)
-
-	fmt.Println("Number of matching words:", len(results))
+	return results
 }
 
 func isValidWord(word, singleLetter, sixCharString string) bool {
@@ -190,7 +317,6 @@ func isValidWord(word, singleLetter, sixCharString string) bool {
 	}
 	return true
 }
-
 func cleanUp(filename string, outputFileName string) {
 	// Open the file for reading
 	file, err := os.Open(filename)
