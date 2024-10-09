@@ -19,8 +19,6 @@ type (
 	VowelForms map[rune]string
 	Flags      struct {
 		CleanupFlag   bool
-		Filename      string
-		OutputFile    string
 		SingleLetter  string
 		SixCharString string
 		Length        int
@@ -41,7 +39,6 @@ const (
 	inputSingleLetter state = iota
 	inputSixCharString
 	inputLength
-	inputCleanupFile
 	done
 )
 
@@ -65,7 +62,7 @@ func main() {
 }
 
 func initializeModel(flags Flags) model {
-	inputs := make([]textinput.Model, 5)
+	inputs := make([]textinput.Model, 3)
 
 	// SingleLetter input
 	input := textinput.New()
@@ -82,16 +79,6 @@ func initializeModel(flags Flags) model {
 	input = textinput.New()
 	input.Placeholder = "Word Length (0 for any)"
 	inputs[2] = input
-
-	// Filename input (for cleanup)
-	input = textinput.New()
-	input.Placeholder = "Filename (for cleanup)"
-	inputs[3] = input
-
-	// OutputFile input (for cleanup)
-	input = textinput.New()
-	input.Placeholder = "Output File (for cleanup)"
-	inputs[4] = input
 
 	return model{
 		flags:        flags,
@@ -127,12 +114,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					m.flags.Length = length
-					if m.flags.Length < 0 {
-						m.currentState = inputCleanupFile
-						m.focusedInput = 3
-						m.inputs[m.focusedInput].Focus()
-						return m, nil
-					}
 					m.currentState = done
 					return m.searchWords(), nil
 				}
@@ -141,24 +122,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusedInput++
 				m.inputs[m.focusedInput].Focus()
 				return m, nil
-			} else if m.currentState == inputCleanupFile {
-				m.flags.Filename = m.inputs[3].Value()
-				m.flags.OutputFile = m.inputs[4].Value()
-				if m.flags.Filename == "" || m.flags.OutputFile == "" {
-					m.errorMessage = "Filename and Output File are required for cleanup"
-					return m, nil
-				}
-				m.currentState = done
-				cleanUp(m.flags.Filename, m.flags.OutputFile)
-			}
-			if m.currentState == done {
-				return m.searchWords(), nil
 			}
 		}
 	}
 
 	// Only update the current input field
-	if m.currentState <= inputLength || (m.currentState == inputCleanupFile && m.flags.Length < 0) {
+	if m.currentState <= inputLength {
 		m.inputs[m.focusedInput], _ = m.inputs[m.focusedInput].Update(msg)
 	}
 
@@ -316,55 +285,4 @@ func isValidWord(word, singleLetter, sixCharString string) bool {
 		}
 	}
 	return true
-}
-func cleanUp(filename string, outputFileName string) {
-	// Open the file for reading
-	file, err := os.Open(filename)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer file.Close()
-
-	// Create a new file to write the cleaned content
-	outputFile, err := os.Create("dictionaries/" + outputFileName + ".txt")
-	if err != nil {
-		fmt.Println("Error creating output file:", err)
-		return
-	}
-	defer outputFile.Close()
-
-	scanner := bufio.NewScanner(file)
-	writer := bufio.NewWriter(outputFile)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Find the index of the slash
-		if index := strings.Index(line, "/"); index != -1 {
-			// Remove the slash and everything after it
-			line = line[:index]
-		}
-
-		// Remove numbers from the line
-		line = strings.Map(func(r rune) rune {
-			if r >= '0' && r <= '9' {
-				return -1
-			}
-			return r
-		}, line)
-
-		// Write the cleaned line to the output file
-		_, err := writer.WriteString(line + "\n")
-		if err != nil {
-			fmt.Println("Error writing to output file:", err)
-			return
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
-	}
-
-	// Flush the writer to ensure all data is written to the file
-	writer.Flush()
 }
