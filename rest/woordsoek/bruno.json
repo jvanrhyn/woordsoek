@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "woordsoek",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

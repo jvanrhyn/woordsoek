@@ -1,0 +1,16 @@
+meta {
+  name: Get Suggested Words
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:3000/search?singleLetter=o&sixCharString=segrtw
+  body: none
+  auth: none
+}
+
+params:query {
+  singleLetter: o
+  sixCharString: segrtw
+}
