@@ -18,7 +18,6 @@ import (
 type (
 	VowelForms map[rune]string
 	Flags      struct {
-		CleanupFlag   bool
 		SingleLetter  string
 		SixCharString string
 		Length        int
@@ -53,7 +52,9 @@ type model struct {
 }
 
 func main() {
-	flags := Flags{}
+	flags := Flags{
+		Length: 0,
+	}
 
 	p := tea.NewProgram(initializeModel(flags), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -110,8 +111,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if m.currentState == inputLength {
 					length, err := strconv.Atoi(m.inputs[2].Value())
 					if err != nil {
-						m.errorMessage = "Length must be a number"
-						return m, nil
+						length = 0
 					}
 					m.flags.Length = length
 					m.currentState = done
