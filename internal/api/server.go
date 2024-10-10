@@ -19,7 +19,14 @@ func StartAPIServer() {
 	// Define the search endpoint
 	app.Get("/search", func(c *fiber.Ctx) error {
 		// Extract query parameters
-		filename := "dictionaries/en.txt" // Example filename, adjust as necessary
+		locale := c.Get("x-locale")       // Get the x-locale header
+		filename := "dictionaries/en.txt" // Default filename
+
+		// Check if the x-locale header is present
+		if locale != "" {
+			filename = "dictionaries/" + locale + ".txt" // Set filename based on header
+		}
+
 		singleLetter := c.Query("singleLetter")
 		sixCharString := c.Query("sixCharString")
 		lengthStr := c.Query("length")
