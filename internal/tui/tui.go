@@ -85,15 +85,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if m.currentState == inputLength {
 					length, err := strconv.Atoi(m.inputs[2].Value())
 					if err != nil {
-						length = 0
+						m.flags.Length = 0
+					} else {
+						m.flags.Length = length
 					}
-					m.flags.Length = length
 					m.currentState = done
 					return m.searchWords(), nil
 				}
 
 				m.currentState++
-				m.focusedInput++
+				if m.focusedInput < len(m.inputs)-1 {
+					m.focusedInput++
+				}
 				m.inputs[m.focusedInput].Focus()
 				return m, nil
 			}
@@ -109,14 +112,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) searchWords() model {
+	m.loading = true // Set loading to true when starting the search
 	lang := os.Getenv("WBLANG")
 	if lang == "" {
+		m.errorMessage = "Language not set. Defaulting to 'af-za'."
 		lang = "af-za"
 	}
 	filenamePath := filepath.Join("dictionaries", lang+".txt")
 
 	woordsoek.LoadVowelForms()
-	m.results = woordsoek.SearchForMatchingWords(filenamePath, m.flags.SingleLetter, m.flags.SixCharString, m.flags.Length)
+	var err error
+	m.results, err = woordsoek.SearchForMatchingWords(filenamePath, m.flags.SingleLetter, m.flags.SixCharString, m.flags.Length)
+	if err != nil {
+		m.errorMessage = "Error searching for words: " + err.Error()
+	}
 	m.loading = false
 
 	return m

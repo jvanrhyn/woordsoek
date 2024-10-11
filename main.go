@@ -1,15 +1,19 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	tui "github.com/jvanrhyn/woordsoek/internal"
+	configure "github.com/jvanrhyn/woordsoek/internal/config" // Correct import statement
+	tui "github.com/jvanrhyn/woordsoek/internal/tui"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
 )
 
 func main() {
-	woordsoek.LoadVowelForms() // Initialize vowel forms
+	logger := configure.SetupLogging()
+	slog.SetDefault(logger)
+	woordsoek.LoadVowelForms()
 
 	flags := tui.Flags{
 		Length: 0,
@@ -17,6 +21,7 @@ func main() {
 
 	p := tea.NewProgram(tui.InitializeModel(flags), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 }

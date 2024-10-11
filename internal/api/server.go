@@ -1,9 +1,11 @@
 package api
 
 import (
+	"log/slog"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jvanrhyn/woordsoek/internal/errors"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
 )
 
@@ -14,6 +16,7 @@ type SearchResponse struct {
 }
 
 func StartAPIServer() {
+	slog.Info("Starting Woordsoek API server")
 	app := fiber.New()
 
 	// Define the search endpoint
@@ -27,6 +30,8 @@ func StartAPIServer() {
 			filename = "dictionaries/" + locale + ".txt" // Set filename based on header
 		}
 
+		slog.Info("Searching for words in " + filename)
+
 		singleLetter := c.Query("singleLetter")
 		sixCharString := c.Query("sixCharString")
 		lengthStr := c.Query("length")
@@ -38,7 +43,10 @@ func StartAPIServer() {
 		}
 
 		// Call the search function from woordsoek package
-		results := woordsoek.SearchForMatchingWords(filename, singleLetter, sixCharString, length)
+		results, err := woordsoek.SearchForMatchingWords(filename, singleLetter, sixCharString, length)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(errors.CustomError{Message: err.Error()})
+		}
 
 		// Create the response object
 		response := SearchResponse{
@@ -51,6 +59,7 @@ func StartAPIServer() {
 			Results: results,
 		}
 
+		slog.Info("Found", "wordcount", len(results))
 		return c.JSON(response)
 	})
 
