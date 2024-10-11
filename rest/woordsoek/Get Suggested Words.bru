@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: http://localhost:3000/search?singleLetter=o&sixCharString=segrtw
+  url: {{schema}}://{{host}}:{{port}}/search?singleLetter=o&sixCharString=segrtw
   body: none
   auth: none
 }
@@ -13,4 +13,8 @@ get {
 params:query {
   singleLetter: o
   sixCharString: segrtw
+}
+
+headers {
+  x-locale: en-za
 }
