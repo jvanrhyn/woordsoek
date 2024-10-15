@@ -72,7 +72,7 @@ func InitializeModel(flags Flags) model {
 
 	p := paginator.New()
 	p.Type = paginator.Dots
-	p.PerPage = 10
+	p.PerPage = 10 // Default value, will be updated based on screen height
 
 	return model{
 		flags:        flags,
@@ -131,6 +131,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+	case tea.WindowSizeMsg:
+		// Update the paginator's PerPage based on the terminal height
+		m.paginator.PerPage = msg.Height / 2 // Adjust this value based on your layout
 	}
 
 	// Only update the current input field
@@ -165,6 +168,9 @@ func (m model) searchWords() model {
 		fmt.Println(m.errorMessage) // Debugging output
 	}
 	m.loading = false
+
+	// Debugging output for results
+	// fmt.Printf("Search results: %v\n", m.results)
 
 	// Populate the list with results
 	var items []list.Item
