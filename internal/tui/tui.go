@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/paginator"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
@@ -47,6 +48,7 @@ type model struct {
 	focusedInput int
 	currentState state
 	list         list.Model
+	paginator    paginator.Model
 }
 
 func InitializeModel(flags Flags) model {
@@ -68,6 +70,10 @@ func InitializeModel(flags Flags) model {
 	input.Placeholder = "Word Length (0 for any)"
 	inputs[2] = input
 
+	p := paginator.New()
+	p.Type = paginator.Dots
+	p.PerPage = 10
+
 	return model{
 		flags:        flags,
 		loading:      false,
@@ -75,6 +81,7 @@ func InitializeModel(flags Flags) model {
 		focusedInput: 0,
 		currentState: inputSingleLetter,
 		list:         list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		paginator:    p,
 	}
 }
 
@@ -90,6 +97,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "tab":
 			if m.currentState == done {
+				// Clear input fields
+				for i := range m.inputs {
+					m.inputs[i].SetValue("") // Clear the input field
+				}
 				m.currentState = inputSingleLetter // Reset to input state
 				m.focusedInput = 0
 				return m, nil
@@ -127,10 +138,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputs[m.focusedInput], _ = m.inputs[m.focusedInput].Update(msg)
 	}
 
-	// Update the list model if in done state
+	// Update the paginator model if in done state
 	if m.currentState == done {
 		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
+		m.paginator, cmd = m.paginator.Update(msg)
 		return m, cmd
 	}
 
@@ -155,15 +166,13 @@ func (m model) searchWords() model {
 	}
 	m.loading = false
 
-	// Debugging output for results
-	fmt.Printf("Search results: %v\n", m.results)
-
 	// Populate the list with results
 	var items []list.Item
 	for _, word := range m.results {
 		items = append(items, wordItem(word))
 	}
 	m.list = list.New(items, list.NewDefaultDelegate(), 0, len(items)) // Set height to number of items
+	m.paginator.SetTotalPages(len(items))
 
 	return m
 }
@@ -182,8 +191,16 @@ func (m model) View() string {
 			return "No matching words found.\nPress 'esc' to quit."
 		}
 
-		// Render the list of matching words using the list model
-		return m.list.View() + "\nPress 'esc' to quit. Press 'tab' to restart."
+		// Render the current page of results using the paginator
+		start, end := m.paginator.GetSliceBounds(len(m.results))
+		var b strings.Builder
+		b.WriteString("\nMatching Words:\n\n")
+		for _, item := range m.results[start:end] {
+			b.WriteString("  • " + item + "\n")
+		}
+		b.WriteString("\n" + m.paginator.View())
+		b.WriteString("\n\nPress 'esc' to quit. Press 'tab' to restart.\n")
+		return b.String()
 	}
 
 	var b strings.Builder
