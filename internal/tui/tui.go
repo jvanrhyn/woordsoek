@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
@@ -26,6 +28,16 @@ const (
 	done
 )
 
+type wordItem string
+
+func (w wordItem) FilterValue() string {
+	return string(w)
+}
+
+func (w wordItem) Title() string {
+	return string(w)
+}
+
 type model struct {
 	flags        Flags
 	results      []string
@@ -34,6 +46,7 @@ type model struct {
 	inputs       []textinput.Model
 	focusedInput int
 	currentState state
+	list         list.Model
 }
 
 func InitializeModel(flags Flags) model {
@@ -61,6 +74,7 @@ func InitializeModel(flags Flags) model {
 		inputs:       inputs,
 		focusedInput: 0,
 		currentState: inputSingleLetter,
+		list:         list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
 	}
 }
 
@@ -75,6 +89,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			return m, tea.Quit
 		case "tab":
+			if m.currentState == done {
+				m.currentState = inputSingleLetter // Reset to input state
+				m.focusedInput = 0
+				return m, nil
+			}
 			return InitializeModel(m.flags), nil
 		case "enter":
 			if m.currentState <= inputLength {
@@ -108,6 +127,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputs[m.focusedInput], _ = m.inputs[m.focusedInput].Update(msg)
 	}
 
+	// Update the list model if in done state
+	if m.currentState == done {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
+
 	return m, nil
 }
 
@@ -125,8 +151,19 @@ func (m model) searchWords() model {
 	m.results, err = woordsoek.SearchForMatchingWords(filenamePath, m.flags.SingleLetter, m.flags.SixCharString, m.flags.Length)
 	if err != nil {
 		m.errorMessage = "Error searching for words: " + err.Error()
+		fmt.Println(m.errorMessage) // Debugging output
 	}
 	m.loading = false
+
+	// Debugging output for results
+	fmt.Printf("Search results: %v\n", m.results)
+
+	// Populate the list with results
+	var items []list.Item
+	for _, word := range m.results {
+		items = append(items, wordItem(word))
+	}
+	m.list = list.New(items, list.NewDefaultDelegate(), 0, len(items)) // Set height to number of items
 
 	return m
 }
@@ -145,14 +182,8 @@ func (m model) View() string {
 			return "No matching words found.\nPress 'esc' to quit."
 		}
 
-		resultStr := "Matching words:\n"
-		for _, word := range m.results {
-			resultStr += word + "\n"
-		}
-		resultStr += "\nNumber of matching words: " + strconv.Itoa(len(m.results)) + "\n"
-		resultStr += "\nPress 'esc' to quit. Press 'tab' to restart."
-
-		return resultStr
+		// Render the list of matching words using the list model
+		return m.list.View() + "\nPress 'esc' to quit. Press 'tab' to restart."
 	}
 
 	var b strings.Builder
