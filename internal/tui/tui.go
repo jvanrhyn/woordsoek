@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	configure "github.com/jvanrhyn/woordsoek/internal/config"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
 )
 
@@ -30,6 +31,11 @@ const (
 )
 
 type wordItem string
+
+func init() {
+	logger := configure.SetupLogging()
+	slog.SetDefault(logger)
+}
 
 func (w wordItem) FilterValue() string {
 	return string(w)
@@ -123,6 +129,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m.searchWords(), nil
 				}
 
+				slog.Info("Input values",
+					"SingleLetter", m.flags.SingleLetter,
+					"SixCharString", m.flags.SixCharString,
+					"Length", m.flags.Length,
+				)
+
 				m.currentState++
 				if m.focusedInput < len(m.inputs)-1 {
 					m.focusedInput++
@@ -165,19 +177,16 @@ func (m model) searchWords() model {
 	m.results, err = woordsoek.SearchForMatchingWords(filenamePath, m.flags.SingleLetter, m.flags.SixCharString, m.flags.Length)
 	if err != nil {
 		m.errorMessage = "Error searching for words: " + err.Error()
-		fmt.Println(m.errorMessage) // Debugging output
+		slog.Error("Error searching for words", "error", err)
 	}
 	m.loading = false
-
-	// Debugging output for results
-	// fmt.Printf("Search results: %v\n", m.results)
 
 	// Populate the list with results
 	var items []list.Item
 	for _, word := range m.results {
 		items = append(items, wordItem(word))
 	}
-	m.list = list.New(items, list.NewDefaultDelegate(), 0, len(items)) // Set height to number of items
+	m.list = list.New(items, list.NewDefaultDelegate(), 0, len(items))
 	m.paginator.SetTotalPages(len(items))
 
 	return m
