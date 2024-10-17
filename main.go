@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"os"
 
+	_ "github.com/joho/godotenv/autoload"
+
 	tea "github.com/charmbracelet/bubbletea"
 	configure "github.com/jvanrhyn/woordsoek/internal/config" // Correct import statement
 	tui "github.com/jvanrhyn/woordsoek/internal/tui"

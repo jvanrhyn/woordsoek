@@ -168,6 +168,7 @@ func (m model) searchWords() model {
 	lang := os.Getenv("WBLANG")
 	if lang == "" {
 		m.errorMessage = "Language not set. Defaulting to 'af-za'."
+		os.Setenv("WBLANG", "af-za")
 		lang = "af-za"
 	}
 	filenamePath := filepath.Join("dictionaries", lang+".txt")
