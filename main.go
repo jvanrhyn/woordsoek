@@ -10,7 +10,6 @@ import (
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
 )
 
-// Comment to test signing
 func main() {
 	logger := configure.SetupLogging()
 	slog.SetDefault(logger)
