@@ -44,19 +44,44 @@ func main() {
 
 			// Split content into words (assuming each word is separated by new lines)
 			words := strings.Split(string(content), "\n")
-			insertCount := 0 // Counter for inserts
+			insertCount := 0        // Counter for inserts
+			batchSize := 500        // Number of inserts per batch
+			var batch []interface{} // Slice to hold words for batch insert
+
 			for _, word := range words {
-				// Insert into the database
-				_, err := db.Exec("INSERT INTO words (word, locale, in_use) VALUES ($1, $2, $3)", word, locale, true)
-				if err != nil {
-					return err
-				}
+				batch = append(batch, word, locale, true)
 				insertCount++ // Increment the counter
 
-				// Report progress every 500 inserts
-				if insertCount%500 == 0 {
+				// Execute batch insert when batch size is reached
+				if insertCount%batchSize == 0 {
+					query := "INSERT INTO words (word, locale, in_use) VALUES "
+					valueStrings := make([]string, batchSize)
+					for i := 0; i < batchSize; i++ {
+						valueStrings[i] = fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3)
+					}
+					_, err := db.Exec(query+strings.Join(valueStrings, ","), batch...)
+					if err != nil {
+						log.Printf("Error inserting batch for locale %s: %v\n", locale, err)
+						return err
+					}
 					fmt.Printf("Inserted %d words for locale: %s\n", insertCount, locale)
+					batch = nil // Reset batch
 				}
+			}
+
+			// Insert any remaining words in the batch
+			if len(batch) > 0 {
+				query := "INSERT INTO words (word, locale, in_use) VALUES "
+				valueStrings := make([]string, len(batch)/3)
+				for i := 0; i < len(batch)/3; i++ {
+					valueStrings[i] = fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3)
+				}
+				_, err := db.Exec(query+strings.Join(valueStrings, ","), batch...)
+				if err != nil {
+					log.Printf("Error inserting remaining batch for locale %s: %v\n", locale, err)
+					return err
+				}
+				fmt.Printf("Inserted %d words for locale: %s\n", insertCount, locale)
 			}
 		}
 		return nil
