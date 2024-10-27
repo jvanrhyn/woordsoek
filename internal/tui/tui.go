@@ -166,10 +166,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) searchWords() model {
 	m.loading = true // Set loading to true when starting the search
 	lang := os.Getenv("WBLANG")
+	slog.Info("Language from environment", "lang", lang)
 	if lang == "" {
-		m.errorMessage = "Language not set. Defaulting to 'af-za'."
-		os.Setenv("WBLANG", "af-za")
 		lang = "af-za"
+		slog.Info("Language set to", "lang", lang)
 	}
 	filenamePath := filepath.Join("dictionaries", lang+".txt")
 
