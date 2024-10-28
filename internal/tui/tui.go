@@ -45,7 +45,7 @@ func (w wordItem) Title() string {
 	return string(w)
 }
 
-type model struct {
+type Model struct {
 	flags        Flags
 	results      []string
 	loading      bool
@@ -57,7 +57,7 @@ type model struct {
 	paginator    paginator.Model
 }
 
-func InitializeModel(flags Flags) model {
+func InitializeModel(flags Flags) Model {
 	inputs := make([]textinput.Model, 3)
 
 	// SingleLetter input
@@ -80,7 +80,7 @@ func InitializeModel(flags Flags) model {
 	p.Type = paginator.Dots
 	p.PerPage = 10 // Default value, will be updated based on screen height
 
-	return model{
+	return Model{
 		flags:        flags,
 		loading:      false,
 		inputs:       inputs,
@@ -91,11 +91,11 @@ func InitializeModel(flags Flags) model {
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -163,7 +163,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) searchWords() model {
+func (m Model) searchWords() Model {
 	m.loading = true // Set loading to true when starting the search
 	lang := os.Getenv("WBLANG")
 	slog.Info("Language from environment", "lang", lang)
@@ -193,7 +193,7 @@ func (m model) searchWords() model {
 	return m
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	if m.loading {
 		return "Loading..."
 	}

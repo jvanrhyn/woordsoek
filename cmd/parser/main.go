@@ -66,7 +66,9 @@ func main() {
 		fmt.Println("Error opening file:", err)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	for _, word := range words {
 		if _, err := file.WriteString(word + "\n"); err != nil {
@@ -76,16 +78,14 @@ func main() {
 	}
 }
 
-func removeDuplicates(words []string) {
-	panic("unimplemented")
-}
-
 func fetchHTML(url string) (string, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

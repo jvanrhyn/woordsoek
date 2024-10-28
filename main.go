@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	configure "github.com/jvanrhyn/woordsoek/internal/config" // Correct import statement
-	tui "github.com/jvanrhyn/woordsoek/internal/tui"
+	"github.com/jvanrhyn/woordsoek/internal/tui"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
 )
 

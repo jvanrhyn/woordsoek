@@ -23,7 +23,9 @@ func SearchForMatchingWords(filename string, singleLetter string, sixCharString 
 	if err != nil {
 		return nil, &errors.CustomError{Message: "Error opening file: " + err.Error()}
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	scanner := bufio.NewScanner(file)
 
@@ -31,10 +33,20 @@ func SearchForMatchingWords(filename string, singleLetter string, sixCharString 
 
 	for scanner.Scan() {
 		word := scanner.Text()
-		if strings.Contains(word, singleLetter) && IsValidWord(word, singleLetter, sixCharString) {
-			if length == 0 || len(word) == length {
-				results = append(results, word)
+		slog.Info("Read word: " + word) // Debug log for each word read
+		if strings.Contains(word, singleLetter) {
+			slog.Info("Checking word: " + word) // Debug log before checking validity
+			if IsValidWord(word, singleLetter, sixCharString) {
+				slog.Info("Valid word: " + word) // Debug log for valid words
+				if length == 0 || len(word) == length {
+					results = append(results, word)
+					slog.Info("Added word: " + word) // Debug log for added words
+				}
+			} else {
+				slog.Info("Invalid word: " + word) // Debug log for invalid words
 			}
+		} else {
+			slog.Info("Does not contain single letter: " + word) // Debug log for words not containing the letter
 		}
 	}
 
@@ -78,9 +90,14 @@ func SearchForMatchingWords(filename string, singleLetter string, sixCharString 
 }
 
 func IsValidWord(word, singleLetter, sixCharString string) bool {
+	if word == "" { // Check for empty string
+		return false
+	}
 	allowedChars := strings.ToLower(singleLetter + sixCharString)
+	slog.Info("Allowed characters: " + allowedChars) // Debug log for allowed characters
 	word = strings.ToLower(word)
 	for _, char := range word {
+		slog.Info("Checking character: " + string(char)) // Debug log for each character checked
 		if !strings.ContainsRune(allowedChars, char) {
 			return false
 		}

@@ -14,7 +14,9 @@ func cleanUp(filename string, outputFileName string) {
 		fmt.Println("Error opening file:", err)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	// Create a new file to write the cleaned content
 	outputFile, err := os.Create("dictionaries/" + outputFileName + ".txt")
@@ -22,7 +24,9 @@ func cleanUp(filename string, outputFileName string) {
 		fmt.Println("Error creating output file:", err)
 		return
 	}
-	defer outputFile.Close()
+	defer func(outputFile *os.File) {
+		_ = outputFile.Close()
+	}(outputFile)
 
 	scanner := bufio.NewScanner(file)
 	writer := bufio.NewWriter(outputFile)
@@ -56,7 +60,7 @@ func cleanUp(filename string, outputFileName string) {
 	}
 
 	// Flush the writer to ensure all data is written to the file
-	writer.Flush()
+	_ = writer.Flush()
 }
 
 func main() {

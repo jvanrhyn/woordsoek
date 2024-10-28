@@ -19,7 +19,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	// Check if the connection is successful
 	if err := db.Ping(); err != nil {
