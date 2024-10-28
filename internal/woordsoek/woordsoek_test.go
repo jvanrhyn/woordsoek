@@ -34,7 +34,9 @@ func TestSearchForMatchingWords(t *testing.T) {
 
 	// Create a temporary file for testing
 	tempFile := "test_words.txt"
-	defer os.Remove(tempFile)
+	defer func(name string) {
+		_ = os.Remove(name)
+	}(tempFile)
 
 	// Write test words to the temporary file
 	words := []string{"hello", "world", "test", "word", "example"}
