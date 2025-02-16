@@ -54,3 +54,6 @@ outdated:
 
 weight:
 	goweight
+
+latest:
+	${BIN} get -t -u ./...
