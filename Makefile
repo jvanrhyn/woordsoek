@@ -1,6 +1,7 @@
 BIN=go
 OUTPATH=./bin
 
+.PHONY: build test watch-test bench watch-bench coverage tools lint lint-fix audit outdated weight latest proto-all
 build: create_build_folder copy_env
 	${BIN} build -v -o ${OUTPATH} ./...
 
@@ -57,3 +58,11 @@ weight:
 
 latest:
 	${BIN} get -t -u ./...
+
+proto-all:
+	protoc \
+	--go_out=. \
+	--go_opt=paths=source_relative \
+    --go-grpc_out=. \
+	--go-grpc_opt=paths=source_relative \
+    pkg/proto/*.proto
