@@ -1,3 +1,4 @@
+// Package api of the server for the woordsoek
 package api
 
 import (
