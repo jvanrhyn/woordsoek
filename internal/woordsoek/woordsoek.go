@@ -1,3 +1,4 @@
+// Package woordsoek is used to lookup words based containing certain letters
 package woordsoek
 
 import (
@@ -12,9 +13,7 @@ import (
 
 type VowelForms map[rune]string
 
-var (
-	vowelForms VowelForms
-)
+var vowelForms VowelForms
 
 func SearchForMatchingWords(filename string, singleLetter string, sixCharString string, length int) ([]string, error) {
 	// Open the file for reading
