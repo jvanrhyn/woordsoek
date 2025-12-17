@@ -20,6 +20,7 @@ type Flags struct {
 	SingleLetter  string
 	SixCharString string
 	Length        int
+	Lang          string
 }
 
 type state int
@@ -28,6 +29,7 @@ const (
 	inputSingleLetter state = iota
 	inputSixCharString
 	inputLength
+	inputLang
 	done
 )
 
@@ -59,7 +61,7 @@ type Model struct {
 }
 
 func InitializeModel(flags Flags) Model {
-	inputs := make([]textinput.Model, 3)
+	inputs := make([]textinput.Model, 4)
 
 	// SingleLetter input
 	input := textinput.New()
@@ -76,6 +78,11 @@ func InitializeModel(flags Flags) Model {
 	input = textinput.New()
 	input.Placeholder = "Word Length (0 for any)"
 	inputs[2] = input
+
+	// Language input
+	input = textinput.New()
+	input.Placeholder = "Language (e.g. af-za)"
+	inputs[3] = input
 
 	p := paginator.New()
 	p.Type = paginator.Dots
@@ -155,6 +162,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.inputs[m.focusedInput].Focus()
 				return m, nil
+			} else if m.currentState == inputLang {
+				m.flags.Lang = strings.TrimSpace(m.inputs[3].Value())
+				m.currentState = done
+				return m.searchWords(), nil
+				m.currentState++
+				if m.focusedInput < len(m.inputs)-1 {
+					m.focusedInput++
+				}
+				m.inputs[m.focusedInput].Focus()
+				return m, nil
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -163,7 +180,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Only update the current input field
-	if m.currentState <= inputLength {
+	if m.currentState <= inputLang {
 		m.inputs[m.focusedInput], _ = m.inputs[m.focusedInput].Update(msg)
 	}
 
@@ -179,12 +196,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) searchWords() Model {
 	m.loading = true // Set loading to true when starting the search
-	lang := os.Getenv("WBLANG")
-	slog.Info("Language from environment", "lang", lang)
+	lang := m.flags.Lang
+	if lang == "" {
+		lang = os.Getenv("WBLANG")
+	}
 	if lang == "" {
 		lang = "af-za"
-		slog.Info("Language set to", "lang", lang)
 	}
+	slog.Info("Language used for search", "lang", lang)
 	filenamePath := filepath.Join("dictionaries", lang+".txt")
 
 	woordsoek.LoadVowelForms()
@@ -237,7 +256,7 @@ func (m Model) View() string {
 	b.WriteString("Input Values (Press 'Enter' to continue):\n\n")
 
 	for i := range m.inputs {
-		if m.currentState <= inputLength && i > 2 {
+		if m.currentState <= inputLang && i > 3 {
 			break
 		}
 		b.WriteString(m.inputs[i].View())
