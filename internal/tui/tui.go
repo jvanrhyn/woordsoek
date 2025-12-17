@@ -124,7 +124,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentState <= inputLength {
 				// clear previous error
 				m.errorMessage = ""
-				if m.currentState == inputSingleLetter {
+				switch m.currentState {
+				case inputSingleLetter:
 					val := strings.TrimSpace(m.inputs[0].Value())
 					// validate single rune
 					if utf8.RuneCountInString(val) != 1 {
@@ -132,9 +133,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					m.flags.SingleLetter = val
-				} else if m.currentState == inputSixCharString {
+				case inputSixCharString:
 					m.flags.SixCharString = strings.TrimSpace(m.inputs[1].Value())
-				} else if m.currentState == inputLength {
+				case inputLength:
 					lengthStr := strings.TrimSpace(m.inputs[2].Value())
 					if lengthStr == "" {
 						m.flags.Length = 0
@@ -163,7 +164,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[m.focusedInput].Focus()
 				return m, nil
 			} else if m.currentState == inputLang {
-				m.flags.Lang = strings.TrimSpace(m.inputs[3].Value())
+				// Only update flags.Lang if the user provided a value in the TUI.
+				// This preserves any pre-set CLI flag (or other source) when the
+				// language input is left blank by the user.
+				val := strings.TrimSpace(m.inputs[3].Value())
+				if val != "" {
+					m.flags.Lang = val
+				}
 				m.currentState = done
 				return m.searchWords(), nil
 			}
@@ -190,13 +197,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) searchWords() Model {
 	m.loading = true // Set loading to true when starting the search
-	lang := m.flags.Lang
-	if lang == "" {
-		lang = os.Getenv("WBLANG")
-	}
-	if lang == "" {
-		lang = "af-za"
-	}
+	lang := m.effectiveLang()
 	slog.Info("Language used for search", "lang", lang)
 	filenamePath := filepath.Join("dictionaries", lang+".txt")
 
@@ -218,6 +219,20 @@ func (m Model) searchWords() Model {
 	m.paginator.SetTotalPages(len(items))
 
 	return m
+}
+
+// effectiveLang returns the language that will be used for searches, taking
+// into account flags set on the model, the WBLANG environment variable, and
+// the hard-coded default.
+func (m Model) effectiveLang() string {
+	lang := m.flags.Lang
+	if lang == "" {
+		lang = os.Getenv("WBLANG")
+	}
+	if lang == "" {
+		lang = "af-za"
+	}
+	return lang
 }
 
 func (m Model) View() string {
@@ -248,6 +263,10 @@ func (m Model) View() string {
 
 	var b strings.Builder
 	b.WriteString("Input Values (Press 'Enter' to continue):\n\n")
+
+	// show the current effective language so the user knows what will be used
+	// by default (flag -> env -> default)
+	b.WriteString("Language: " + m.effectiveLang() + "\n\n")
 
 	for i := range m.inputs {
 		if m.currentState <= inputLang && i > 3 {

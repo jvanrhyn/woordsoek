@@ -51,7 +51,17 @@ func main() {
 		return
 	}
 
-	flags := tui.Flags{Length: 0}
+	// Determine language for interactive mode: flag overrides env
+	if lang == "" {
+		lang = os.Getenv("WBLANG")
+	}
+	// pass parsed flags into the TUI so CLI-provided values are used as defaults
+	flags := tui.Flags{
+		SingleLetter:  single,
+		SixCharString: chars,
+		Length:        length,
+		Lang:          lang,
+	}
 	p := tea.NewProgram(tui.InitializeModel(flags), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		slog.Error(err.Error())
