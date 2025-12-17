@@ -51,7 +51,7 @@ func loadDictionary(filename string) ([]string, error) {
 	}
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, &internalerrors.CustomError{Message: fmt.Sprintf("error opening file %s: %v", filename, err)}
+		return nil, internalerrors.New(fmt.Sprintf("error opening file %s", filename), err)
 	}
 	defer func() { _ = file.Close() }()
 
@@ -63,7 +63,7 @@ func loadDictionary(filename string) ([]string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, &internalerrors.CustomError{Message: fmt.Sprintf("error reading file %s: %v", filename, err)}
+		return nil, internalerrors.New(fmt.Sprintf("error reading file %s", filename), err)
 	}
 	dictCache.Store(filename, words)
 	return words, nil
@@ -86,11 +86,11 @@ func ClearAllDictionaryCache() {
 func searchFromWords(words []string, singleLetter, sixCharString string, length int) ([]string, error) {
 	// validate singleLetter
 	if singleLetter == "" {
-		return nil, &internalerrors.CustomError{Message: "singleLetter must be provided"}
+		return nil, internalerrors.New("singleLetter must be provided", nil)
 	}
 	singleRunes := []rune(strings.ToLower(singleLetter))
 	if len(singleRunes) != 1 {
-		return nil, &internalerrors.CustomError{Message: "singleLetter must be a single character"}
+		return nil, internalerrors.New("singleLetter must be a single character", nil)
 	}
 
 	allowed := make(map[rune]struct{})
@@ -138,11 +138,11 @@ func searchFromWords(words []string, singleLetter, sixCharString string, length 
 func searchFromWordsParallel(words []string, singleLetter, sixCharString string, length int) ([]string, error) {
 	// validate inputs
 	if singleLetter == "" {
-		return nil, &internalerrors.CustomError{Message: "singleLetter must be provided"}
+		return nil, internalerrors.New("singleLetter must be provided", nil)
 	}
 	singleRunes := []rune(strings.ToLower(singleLetter))
 	if len(singleRunes) != 1 {
-		return nil, &internalerrors.CustomError{Message: "singleLetter must be a single character"}
+		return nil, internalerrors.New("singleLetter must be a single character", nil)
 	}
 
 	allowed := make(map[rune]struct{})
@@ -224,11 +224,11 @@ func searchFromWordsParallel(words []string, singleLetter, sixCharString string,
 func searchFromReader(r io.Reader, singleLetter, sixCharString string, length int) ([]string, error) {
 	// validate singleLetter
 	if singleLetter == "" {
-		return nil, &internalerrors.CustomError{Message: "singleLetter must be provided"}
+		return nil, internalerrors.New("singleLetter must be provided", nil)
 	}
 	singleRunes := []rune(strings.ToLower(singleLetter))
 	if len(singleRunes) != 1 {
-		return nil, &internalerrors.CustomError{Message: "singleLetter must be a single character"}
+		return nil, internalerrors.New("singleLetter must be a single character", nil)
 	}
 
 	// build allowed set for O(1) lookups
@@ -264,7 +264,7 @@ func searchFromReader(r io.Reader, singleLetter, sixCharString string, length in
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, &internalerrors.CustomError{Message: fmt.Sprintf("error reading input: %v", err)}
+		return nil, internalerrors.New("error reading input", err)
 	}
 
 	// unique and sort

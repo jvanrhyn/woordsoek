@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/jvanrhyn/woordsoek/internal/errors"
 	"github.com/jvanrhyn/woordsoek/internal/woordsoek"
 )
 
@@ -46,7 +45,8 @@ func StartAPIServer() {
 		// Call the search function from woordsoek package
 		results, err := woordsoek.SearchForMatchingWords(filename, singleLetter, sixCharString, length)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(errors.CustomError{Message: err.Error()})
+			// return a standard error response rather than exposing internal error types
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
 
 		// Create the response object

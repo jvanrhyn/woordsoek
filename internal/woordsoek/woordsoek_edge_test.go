@@ -1,11 +1,14 @@
 package woordsoek
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	internalerrors "github.com/jvanrhyn/woordsoek/internal/errors"
 )
 
 func TestUnicodeEdgeCases(t *testing.T) {
@@ -100,6 +103,22 @@ func TestDictionaryCacheBehavior(t *testing.T) {
 	}
 	if len(w3) == len(w1) {
 		t.Fatalf("expected updated contents after clearing cache")
+	}
+}
+
+func TestLoadDictionaryErrorWrapping(t *testing.T) {
+	// Attempt to load a non-existent file and verify the returned error wraps the original os error
+	_, err := loadDictionary("this-file-does-not-exist-hopefully.txt")
+	if err == nil {
+		t.Fatalf("expected error when loading non-existent file")
+	}
+	var ce *internalerrors.CustomError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected CustomError, got: %T (%v)", err, err)
+	}
+	var pe *os.PathError
+	if !errors.As(err, &pe) {
+		t.Fatalf("expected underlying error to be os.PathError, got: %T (%v)", err, err)
 	}
 }
 
