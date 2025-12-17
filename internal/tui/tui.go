@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -114,22 +115,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return InitializeModel(m.flags), nil
 		case "enter":
 			if m.currentState <= inputLength {
+				// clear previous error
+				m.errorMessage = ""
 				if m.currentState == inputSingleLetter {
-					m.flags.SingleLetter = m.inputs[0].Value()
+					val := strings.TrimSpace(m.inputs[0].Value())
+					// validate single rune
+					if utf8.RuneCountInString(val) != 1 {
+						m.errorMessage = "Single letter must be exactly one character"
+						return m, nil
+					}
+					m.flags.SingleLetter = val
 				} else if m.currentState == inputSixCharString {
-					m.flags.SixCharString = m.inputs[1].Value()
+					m.flags.SixCharString = strings.TrimSpace(m.inputs[1].Value())
 				} else if m.currentState == inputLength {
-					length, err := strconv.Atoi(m.inputs[2].Value())
-					if err != nil {
+					lengthStr := strings.TrimSpace(m.inputs[2].Value())
+					if lengthStr == "" {
 						m.flags.Length = 0
 					} else {
-						m.flags.Length = length
+						lengthVal, err := strconv.Atoi(lengthStr)
+						if err != nil || lengthVal < 0 {
+							m.errorMessage = "Length must be a non-negative integer"
+							return m, nil
+						}
+						m.flags.Length = lengthVal
 					}
 					m.currentState = done
 					return m.searchWords(), nil
 				}
 
-				slog.Info("Input values",
+				slog.Debug("Input values",
 					"SingleLetter", m.flags.SingleLetter,
 					"SixCharString", m.flags.SixCharString,
 					"Length", m.flags.Length,
@@ -199,7 +213,7 @@ func (m Model) View() string {
 	}
 
 	if m.errorMessage != "" {
-		return "Error: " + m.errorMessage + "\nPress 'esc' to quit."
+		return "Error: " + m.errorMessage + "\nPress 'esc' to quit, 'tab' to restart."
 	}
 
 	if m.currentState == done {

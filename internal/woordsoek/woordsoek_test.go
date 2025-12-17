@@ -1,6 +1,7 @@
 package woordsoek
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -104,5 +105,22 @@ func TestSearchInvalidSingleLetter(t *testing.T) {
 	_, err := SearchForMatchingWords(tempFile, "ab", "", 0)
 	if err == nil {
 		t.Fatalf("expected error for invalid singleLetter, got nil")
+	}
+}
+
+func BenchmarkSearchFromReader(b *testing.B) {
+	LoadVowelForms()
+	var sb strings.Builder
+	for i := 0; i < 10000; i++ {
+		sb.WriteString(fmt.Sprintf("word%v\n", i))
+	}
+	data := sb.String()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := strings.NewReader(data)
+		if _, err := searchFromReader(r, "w", "ord", 0); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
