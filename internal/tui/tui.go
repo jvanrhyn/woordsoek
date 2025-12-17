@@ -146,8 +146,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 						m.flags.Length = lengthVal
 					}
-					m.currentState = done
-					return m.searchWords(), nil
+					// move to language input (do not finish here) so user can enter language
+					// flow will continue below which increments the state and focuses the next input
 				}
 
 				slog.Debug("Input values",
@@ -166,12 +166,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.flags.Lang = strings.TrimSpace(m.inputs[3].Value())
 				m.currentState = done
 				return m.searchWords(), nil
-				m.currentState++
-				if m.focusedInput < len(m.inputs)-1 {
-					m.focusedInput++
-				}
-				m.inputs[m.focusedInput].Focus()
-				return m, nil
 			}
 		}
 	case tea.WindowSizeMsg:
