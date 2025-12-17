@@ -69,3 +69,40 @@ func TestSearchForMatchingWords(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchWithUnicodeNormalization(t *testing.T) {
+	LoadVowelForms()
+	tempFile := "test_unicode.txt"
+	defer func(name string) { _ = os.Remove(name) }(tempFile)
+
+	words := []string{"café", "cafe", "caFe", "caf"}
+	if err := os.WriteFile(tempFile, []byte(strings.Join(words, "\n")), 0644); err != nil {
+		t.Fatalf("Failed to write test words to file: %v", err)
+	}
+
+	// Searching with single letter c and allowed a f e should match "cafe" (normalized)
+	res, err := SearchForMatchingWords(tempFile, "c", "afe", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// "caf" is length < 4 and should be filtered out by default behavior
+	expected := []string{"cafe"}
+	if !reflect.DeepEqual(res, expected) {
+		t.Fatalf("unexpected results: %v (expected %v)", res, expected)
+	}
+}
+
+func TestSearchInvalidSingleLetter(t *testing.T) {
+	LoadVowelForms()
+	tempFile := "test_words.txt"
+	defer func(name string) { _ = os.Remove(name) }(tempFile)
+	words := []string{"hello", "world"}
+	if err := os.WriteFile(tempFile, []byte(strings.Join(words, "\n")), 0644); err != nil {
+		t.Fatalf("Failed to write test words to file: %v", err)
+	}
+
+	_, err := SearchForMatchingWords(tempFile, "ab", "", 0)
+	if err == nil {
+		t.Fatalf("expected error for invalid singleLetter, got nil")
+	}
+}

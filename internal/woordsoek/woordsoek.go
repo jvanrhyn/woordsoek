@@ -3,109 +3,143 @@ package woordsoek
 
 import (
 	"bufio"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"sort"
 	"strings"
+	"sync"
+	"unicode/utf8"
 
-	"github.com/jvanrhyn/woordsoek/internal/errors"
+	internalerrors "github.com/jvanrhyn/woordsoek/internal/errors"
 )
 
 type VowelForms map[rune]string
 
-var vowelForms VowelForms
+var (
+	vowelForms    VowelForms
+	vowelReplacer *strings.Replacer
+	vowelOnce     sync.Once
+)
 
+const minDefaultLength = 4
+
+// SearchForMatchingWords opens the dictionary file and searches for words
+// that match the provided criteria. singleLetter must be exactly one rune.
 func SearchForMatchingWords(filename string, singleLetter string, sixCharString string, length int) ([]string, error) {
-	// Open the file for reading
-	slog.Info("Opening file: " + filename)
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, &errors.CustomError{Message: "Error opening file: " + err.Error()}
+		return nil, &internalerrors.CustomError{Message: fmt.Sprintf("error opening file %s: %v", filename, err)}
 	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
+	defer func() { _ = file.Close() }()
 
-	scanner := bufio.NewScanner(file)
+	return searchFromReader(file, singleLetter, sixCharString, length)
+}
 
-	var results []string
+// searchFromReader is the core search routine and is split out to ease testing.
+func searchFromReader(r io.Reader, singleLetter, sixCharString string, length int) ([]string, error) {
+	// validate singleLetter
+	if singleLetter == "" {
+		return nil, &internalerrors.CustomError{Message: "singleLetter must be provided"}
+	}
+	singleRunes := []rune(strings.ToLower(singleLetter))
+	if len(singleRunes) != 1 {
+		return nil, &internalerrors.CustomError{Message: "singleLetter must be a single character"}
+	}
 
+	// build allowed set for O(1) lookups
+	allowed := make(map[rune]struct{})
+	for _, r := range strings.ToLower(singleLetter + sixCharString) {
+		allowed[r] = struct{}{}
+	}
+
+	scanner := bufio.NewScanner(r)
+	var candidates []string
 	for scanner.Scan() {
-		word := scanner.Text()
-		slog.Info("Read word: " + word) // Debug log for each word read
-		if strings.Contains(word, singleLetter) {
-			slog.Info("Checking word: " + word) // Debug log before checking validity
-			if IsValidWord(word, singleLetter, sixCharString) {
-				slog.Info("Valid word: " + word) // Debug log for valid words
-				if length == 0 || len(word) == length {
-					results = append(results, word)
-					slog.Info("Added word: " + word) // Debug log for added words
-				}
-			} else {
-				slog.Info("Invalid word: " + word) // Debug log for invalid words
-			}
-		} else {
-			slog.Info("Does not contain single letter: " + word) // Debug log for words not containing the letter
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, &errors.CustomError{Message: "Error reading file: " + err.Error()}
-	}
-
-	// Filter results for words 4 letters and longer only if length is not 0
-	var filteredResults []string
-	for _, word := range results {
-		if length != 0 && len(word) < 4 {
+		word := strings.TrimSpace(scanner.Text())
+		if word == "" {
 			continue
 		}
-		filteredResults = append(filteredResults, word)
-	}
-
-	// Replace vowel forms with the base vowel in the results
-	for i, word := range filteredResults {
-		for vowel, forms := range vowelForms {
-			for _, form := range forms {
-				word = strings.ReplaceAll(word, string(form), string(vowel))
-			}
+		// skip quickly if it doesn't contain the requested rune
+		if !strings.ContainsRune(strings.ToLower(word), singleRunes[0]) {
+			continue
 		}
-		filteredResults[i] = word
+		if isValidWordWithAllowedSet(word, allowed) {
+			// length check: if length is specified, require exact match; otherwise require minDefaultLength
+			runeLen := utf8.RuneCountInString(word)
+			if length > 0 {
+				if runeLen != length {
+					continue
+				}
+			} else {
+				if runeLen < minDefaultLength {
+					continue
+				}
+			}
+			candidates = append(candidates, normalizeWord(word))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, &internalerrors.CustomError{Message: fmt.Sprintf("error reading input: %v", err)}
 	}
 
-	// Remove duplicate words from the results
-	uniqueResults := make(map[string]struct{})
-	for _, word := range filteredResults {
-		uniqueResults[word] = struct{}{}
+	// unique and sort
+	uniq := make(map[string]struct{})
+	for _, w := range candidates {
+		uniq[w] = struct{}{}
 	}
-
-	results = make([]string, 0, len(uniqueResults))
-	for word := range uniqueResults {
-		results = append(results, word)
+	results := make([]string, 0, len(uniq))
+	for w := range uniq {
+		results = append(results, w)
 	}
-	// Sort the results alphabetically
 	sort.Strings(results)
-
+	slog.Debug("Search completed", "matches", len(results))
 	return results, nil
 }
 
+// IsValidWord kept for compatibility with tests: it builds the allowed set and delegates.
 func IsValidWord(word, singleLetter, sixCharString string) bool {
-	if word == "" { // Check for empty string
+	if word == "" {
 		return false
 	}
-	allowedChars := strings.ToLower(singleLetter + sixCharString)
-	slog.Info("Allowed characters: " + allowedChars) // Debug log for allowed characters
-	word = strings.ToLower(word)
-	for _, char := range word {
-		slog.Info("Checking character: " + string(char)) // Debug log for each character checked
-		if !strings.ContainsRune(allowedChars, char) {
+	allowed := make(map[rune]struct{})
+	for _, r := range strings.ToLower(singleLetter + sixCharString) {
+		allowed[r] = struct{}{}
+	}
+	return isValidWordWithAllowedSet(word, allowed)
+}
+
+func isValidWordWithAllowedSet(word string, allowed map[rune]struct{}) bool {
+	for _, r := range strings.ToLower(word) {
+		if _, ok := allowed[r]; !ok {
 			return false
 		}
 	}
 	return true
 }
 
+func normalizeWord(word string) string {
+	vowelOnce.Do(func() {
+		// Build replacer pairs from vowelForms
+		var pairs []string
+		for base, forms := range vowelForms {
+			baseStr := string(base)
+			for _, r := range forms {
+				pairs = append(pairs, string(r), baseStr)
+			}
+		}
+		if len(pairs) > 0 {
+			vowelReplacer = strings.NewReplacer(pairs...)
+		}
+	})
+	if vowelReplacer != nil {
+		return strings.ToLower(vowelReplacer.Replace(word))
+	}
+	return strings.ToLower(word)
+}
+
 func LoadVowelForms() {
-	// Define a map of vowels to their different forms
 	vowelForms = VowelForms{
 		'a': "àáâãäå",
 		'e': "èéêë",
@@ -113,4 +147,7 @@ func LoadVowelForms() {
 		'o': "òóôõö",
 		'u': "ùúûü",
 	}
+	// reset replacer so it will be rebuilt on next normalize
+	vowelOnce = sync.Once{}
+	vowelReplacer = nil
 }
